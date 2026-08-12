@@ -189,7 +189,8 @@ const STATE_LABEL: Record<TaskView['state'], string> = {
 
 async function refreshBoard(): Promise<void> {
   try {
-    const r = await (await fetch('api/state')).json() as { tasks: TaskView[]; workspaceRoot: string }
+    const panelParam = typeof cate !== 'undefined' ? `?panel=${encodeURIComponent(cate.panel.id)}` : ''
+    const r = await (await fetch(`api/state${panelParam}`)).json() as { tasks: TaskView[]; workspaceRoot: string }
     $('workspace').textContent = r.workspaceRoot
     const cards = $('cards')
     cards.innerHTML = ''

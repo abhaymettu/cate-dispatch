@@ -4,7 +4,7 @@
 // secret written to ~/.dispatch/server.json for the hotkey script.
 
 import { randomBytes } from 'crypto'
-import { promises as fs } from 'fs'
+import { promises as fs, readFileSync } from 'fs'
 import http from 'http'
 import path from 'path'
 import { DISPATCH_DIR, call, extensionCreds } from './cate'
@@ -21,6 +21,12 @@ const SERVER_FILE = path.join(DISPATCH_DIR, 'server.json')
 
 const launcherSecret = randomBytes(16).toString('hex')
 let boardPanelId: string | null = null
+// Survive server restarts: the panel only announces itself while it is open,
+// so a fresh server would otherwise forget the board until the next poll.
+try {
+  const parsed = JSON.parse(readFileSync(SERVER_FILE, 'utf-8')) as { boardPanelId?: unknown }
+  if (typeof parsed.boardPanelId === 'string') boardPanelId = parsed.boardPanelId
+} catch { /* first boot */ }
 
 interface Draft { thought: string; target: string; plan: Plan }
 const drafts = new Map<string, Draft>()
@@ -86,10 +92,18 @@ async function handleApi(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   route: string,
+  url: URL,
 ): Promise<void> {
   if (req.method !== 'POST' && route !== 'state') { json(res, 405, { error: 'POST only' }); return }
 
   if (route === 'state') {
+    // The poll doubles as a liveness beacon: the panel names itself on every
+    // request, so a restarted server re-learns the board id within one poll.
+    const fromPanel = url.searchParams.get('panel')
+    if (fromPanel && fromPanel !== boardPanelId) {
+      boardPanelId = fromPanel
+      await writeServerFile()
+    }
     json(res, 200, { tasks: await taskViews(), workspaceRoot: WORKSPACE_ROOT })
     return
   }
@@ -174,15 +188,39 @@ async function handleApi(
 
 async function focusBoard(): Promise<void> {
   const ext = extensionCreds()
-  if (boardPanelId) {
-    try {
-      await call(ext, 'cate.panel.focus', { panelId: boardPanelId })
-      return
-    } catch {
-      boardPanelId = null
+  // Focus the remembered board; if it is gone, find ANY existing Dispatch
+  // panel before creating one, so the hotkey never multiplies panels.
+  const candidates: string[] = boardPanelId ? [boardPanelId] : []
+  try {
+    const listed = (await call(ext, 'cate.panel.list', {})) as Array<{
+      panelId?: unknown
+      type?: unknown
+      title?: unknown
+    }>
+    for (const p of Array.isArray(listed) ? listed : []) {
+      if (p.type === 'extension' && p.title === 'Dispatch' && typeof p.panelId === 'string') {
+        candidates.push(p.panelId)
+      }
     }
+  } catch { /* list unavailable; fall through */ }
+  for (const id of candidates) {
+    try {
+      await call(ext, 'cate.panel.focus', { panelId: id })
+      if (id !== boardPanelId) {
+        boardPanelId = id
+        await writeServerFile()
+      }
+      return
+    } catch { /* stale id; try the next */ }
   }
-  await call(ext, 'cate.canvas.createPanel', { type: 'extension', extensionPanelId: 'board' })
+  boardPanelId = null
+  const created = (await call(ext, 'cate.canvas.createPanel', {
+    type: 'extension',
+    extensionPanelId: 'board',
+  })) as { panelId?: unknown }
+  if (typeof created?.panelId === 'string') {
+    await call(ext, 'cate.panel.focus', { panelId: created.panelId }).catch(() => {})
+  }
 }
 
 const server = http.createServer((req, res) => {
@@ -203,7 +241,7 @@ const server = http.createServer((req, res) => {
 
     if (url.pathname.startsWith('/api/')) {
       try {
-        await handleApi(req, res, url.pathname.slice('/api/'.length))
+        await handleApi(req, res, url.pathname.slice('/api/'.length), url)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         json(res, 500, { error: msg })
