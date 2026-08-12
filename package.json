@@ -1,0 +1,14 @@
+{
+  "name": "cate-dispatch",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.server.json && tsc -p tsconfig.panel.json && mkdir -p dist/panel && cp src/panel/index.html src/panel/style.css dist/panel/",
+    "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.panel.json --noEmit",
+    "test": "npm run build && node --test dist/server/checks.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

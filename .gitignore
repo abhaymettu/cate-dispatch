@@ -1,0 +1,5 @@
+node_modules/
+dist/
+# Private planning docs — not part of the open-source release
+BUILD-SPEC.md
+PLAN.md

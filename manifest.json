@@ -1,0 +1,16 @@
+{
+  "id": "abhay.dispatch",
+  "name": "Dispatch",
+  "version": "0.1.0",
+  "category": "ai",
+  "description": "Rough thought in, routed and spec'd Claude Code agent out, running in a Cate terminal panel.",
+  "panels": [
+    {
+      "id": "board",
+      "label": "Dispatch",
+      "defaultSize": { "width": 720, "height": 520 }
+    }
+  ],
+  "server": { "command": "node dist/server/server.js", "readyPath": "/health" },
+  "cateApi": ["theme", "ui", "panel", "canvas"]
+}

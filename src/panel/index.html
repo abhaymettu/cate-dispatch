@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Dispatch</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Dispatch</h1>
+    <span id="workspace" class="muted"></span>
+  </header>
+
+  <section id="compose">
+    <textarea id="thought" rows="2" placeholder="Rough thought… (⌘⏎ to dispatch)"></textarea>
+    <div class="row">
+      <button id="go">Dispatch</button>
+      <span id="compose-status" class="muted"></span>
+    </div>
+  </section>
+
+  <section id="questions" hidden>
+    <div class="row">
+      <label class="muted" for="target">target</label>
+      <input id="target" spellcheck="false" />
+    </div>
+    <ul id="assumptions" class="muted"></ul>
+    <div id="qlist"></div>
+    <div class="row">
+      <button id="continue">Write spec</button>
+      <button id="q-abort" class="ghost">Abort</button>
+    </div>
+  </section>
+
+  <section id="review" hidden>
+    <textarea id="spec" rows="14" spellcheck="false"></textarea>
+    <div class="row">
+      <button id="approve">Approve &amp; spawn</button>
+      <button id="r-abort" class="ghost">Abort</button>
+      <span id="review-status" class="muted"></span>
+    </div>
+  </section>
+
+  <section id="board">
+    <div id="cards"></div>
+    <p id="empty" class="muted">No agents yet.</p>
+  </section>
+
+  <footer>
+    <a id="selftest" href="#">prove spawn path</a>
+    <span id="foot-status" class="muted"></span>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>

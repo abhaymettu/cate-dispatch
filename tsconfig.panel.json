@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "none",
+    "outDir": "dist/panel",
+    "rootDir": "src/panel",
+    "strict": true,
+    "lib": ["es2022", "dom"],
+    "skipLibCheck": true
+  },
+  "include": ["src/panel/main.ts"]
+}
