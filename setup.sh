@@ -49,6 +49,23 @@ EOF
 chmod +x "$HOME/.dispatch/bin/dispatch-focus"
 echo "installed ~/.dispatch/bin/dispatch-focus"
 
+cat > "$HOME/.dispatch/bin/dispatch-remote" <<'EOF'
+#!/bin/sh
+# Start a dispatch task from outside Cate (a phone assistant, a script).
+# Usage: dispatch-remote "<rough thought>". Replies immediately; the pipeline
+# runs in the background and the result arrives via the notify command.
+set -eu
+cfg="$HOME/.dispatch/server.json"
+[ -r "$cfg" ] || { echo "dispatch server not running (open a Dispatch panel in Cate)" >&2; exit 1; }
+port=$(sed -n 's/.*"port": *\([0-9]*\).*/\1/p' "$cfg")
+secret=$(sed -n 's/.*"secret": *"\([^"]*\)".*/\1/p' "$cfg")
+body=$(printf '%s' "$*" | python3 -c 'import json,sys; print(json.dumps({"thought": sys.stdin.read()}))')
+curl -fsS -X POST -H 'Content-Type: application/json' --data "$body" \
+  "http://127.0.0.1:${port}/launcher/dispatch?secret=${secret}"
+EOF
+chmod +x "$HOME/.dispatch/bin/dispatch-remote"
+echo "installed ~/.dispatch/bin/dispatch-remote"
+
 # --- 3. build ----------------------------------------------------------------
 cd "$here"
 npm install

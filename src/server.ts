@@ -3,6 +3,7 @@
 // tokenless - it's the daemon's ready probe. /launcher/* is gated by a local
 // secret written to ~/.dispatch/server.json for the hotkey script.
 
+import { spawn } from 'child_process'
 import { randomBytes } from 'crypto'
 import { promises as fs, readFileSync } from 'fs'
 import http from 'http'
@@ -186,6 +187,45 @@ async function handleApi(
   json(res, 404, { error: `no route: ${route}` })
 }
 
+/** Phone-initiated dispatch (numen): full pipeline with every clarifying
+ *  question answered by its default, then spawn. Runs in the background - the
+ *  two claude -p calls take minutes and the caller (numen's Telegram poller)
+ *  must not block on them. The outcome is texted back through the notify
+ *  command, and the board picks the task up on its next poll. */
+function autoDispatch(thought: string): void {
+  void (async () => {
+    try {
+      const profs = await profiles()
+      const plan = await expand1(thought, profs)
+      let target = profs[plan.profile] ?? WORKSPACE_ROOT
+      if (plan.repo) target = path.join(target, plan.repo)
+      const spec = await expand2(thought, answersBlock(plan, []), target, profs)
+      const existing = (await allTasks()).map((t) => t.id)
+      const name = taskName(target, existing, plan.slug)
+      const { task } = await spawnAgent({ name, thought, target, spec, workspaceRoot: WORKSPACE_ROOT })
+      await addTask(task)
+      notify(`dispatch: ${name} is on the canvas, working in ${target.replace(/^\/Users\/[^/]+/, '~')}.\n\nSpec:\n${spec.slice(0, 500)}${spec.length > 500 ? '…' : ''}`)
+    } catch (err) {
+      notify(`dispatch failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  })()
+}
+
+/** Pipe a message through the user's notify command (same chain as hook.ts). */
+function notify(body: string, candidates?: string[]): void {
+  const [cmd, ...rest] = candidates ?? (
+    process.env.DISPATCH_NOTIFY ? [process.env.DISPATCH_NOTIFY] : ['numen', 'tg']
+  )
+  if (!cmd) return
+  try {
+    const child = spawn(cmd, [], { stdio: ['pipe', 'ignore', 'ignore'] })
+    child.on('error', () => notify(body, rest))
+    child.stdin.end(body)
+  } catch {
+    notify(body, rest)
+  }
+}
+
 async function focusBoard(): Promise<void> {
   const ext = extensionCreds()
   // Focus the remembered board; if it is gone, find ANY existing Dispatch
@@ -233,6 +273,19 @@ const server = http.createServer((req, res) => {
       if (url.searchParams.get('secret') !== launcherSecret) { res.writeHead(401).end(); return }
       await focusBoard()
       res.writeHead(200).end('ok')
+      return
+    }
+
+    if (url.pathname === '/launcher/dispatch' && req.method === 'POST') {
+      if (url.searchParams.get('secret') !== launcherSecret) { res.writeHead(401).end(); return }
+      const body = JSON.parse((await readBody(req)) || '{}') as { thought?: unknown }
+      const thought = typeof body.thought === 'string' ? body.thought.trim() : ''
+      if (!thought) { res.writeHead(400).end('empty thought'); return }
+      autoDispatch(thought)
+      res.writeHead(200).end(
+        'On it. Routing and writing the spec now, then it goes on the Cate canvas. ' +
+        "I'll text you the task name and spec in a few minutes.",
+      )
       return
     }
 
