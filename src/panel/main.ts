@@ -17,7 +17,16 @@ interface CateHost {
 declare const cate: CateHost | undefined
 
 interface Question { q: string; default: string }
-interface Plan { profile: string; repo: string | null; slug: string; questions: Question[]; assumptions: string[] }
+interface Plan {
+  profile: string
+  repo: string | null
+  slug: string
+  questions: Question[]
+  assumptions: string[]
+  /** Set only when the thought named one; null means the server's default. */
+  model: string | null
+  effort: string | null
+}
 
 /** Mirrors the server's TaskView (src/tasks.ts) — all of it, not just the bits
     the old panel happened to render. */
@@ -270,6 +279,12 @@ async function startDispatch(): Promise<void> {
     const pill = $('profile')
     pill.hidden = !r.plan.profile
     pill.textContent = r.plan.profile
+
+    // if the thought asked to run with something, say so before it spawns
+    const runWith = $('runWith')
+    const parts = [r.plan.model, r.plan.effort].filter(Boolean)
+    runWith.hidden = parts.length === 0
+    runWith.textContent = parts.join(' · ')
 
     const assumptions = $('assumptions')
     assumptions.replaceChildren()

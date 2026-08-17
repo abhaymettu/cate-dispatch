@@ -157,6 +157,9 @@ async function handleApi(
       target: draft.target,
       spec,
       workspaceRoot: WORKSPACE_ROOT,
+      // what the thought asked to run with; spawnAgent falls back to the defaults
+      model: draft.plan.model,
+      effort: draft.plan.effort,
     })
     await addTask(task)
     drafts.delete(String(body.draftId))

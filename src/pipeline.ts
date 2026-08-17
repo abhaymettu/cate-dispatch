@@ -18,6 +18,33 @@ export interface Plan {
   slug: string
   questions: Question[]
   assumptions: string[]
+  /** Only when the thought named one. Null means "use the default". */
+  model: string | null
+  effort: string | null
+}
+
+// An agent cannot change its own model once it is running, so asking for one is
+// an instruction to the launcher, not to the agent. These two allowlists are
+// also the trust boundary: both values end up inside the spawned shell command.
+const MODELS: Record<string, string> = {
+  opus: 'claude-opus-5',
+  sonnet: 'claude-sonnet-5',
+  haiku: 'claude-haiku-4-5-20251001',
+  fable: 'claude-fable-5',
+}
+const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
+
+/** A requested model, or the default. Accepts "sonnet" and "claude-sonnet-5". */
+export function resolveModel(want: unknown): string {
+  const v = String(want ?? '').trim().toLowerCase()
+  if (!v) return DEFAULT_MODEL
+  if (MODELS[v]) return MODELS[v]
+  return Object.values(MODELS).includes(v) ? v : DEFAULT_MODEL
+}
+
+export function resolveEffort(want: unknown): string {
+  const v = String(want ?? '').trim().toLowerCase()
+  return EFFORTS.includes(v) ? v : DEFAULT_EFFORT
 }
 
 export function expandTilde(p: string): string {
@@ -75,10 +102,17 @@ Task: ${thought}
 Pick the working directory. Ask clarifying questions (max 4) ONLY about genuine forks
 in the work where guessing wrong would waste the run. If the task is unambiguous,
 ask nothing and state your assumptions instead. Each question needs a sensible
-default. Reply with ONLY JSON:
+default.
+If the task names a model or an effort level to run with ("use sonnet", "high
+effort"), report it in "model"/"effort" so the launcher can honour it. It is a
+setting on the run, not a step of the work, so do not ask about it and do not
+put it in an assumption. Leave both null when the task does not say.
+Reply with ONLY JSON:
 {"profile": "...", "repo": "<subdir name, or null>",
  "slug": "<2-3 word kebab-case name for the task itself, e.g. fix-tab-titles>",
- "questions": [{"q": "...", "default": "..."}], "assumptions": ["..."]}`
+ "questions": [{"q": "...", "default": "..."}], "assumptions": ["..."],
+ "model": "<opus|sonnet|haiku|fable, or null>",
+ "effort": "<low|medium|high|xhigh|max, or null>"}`
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const raw = parseJson(await claudeP(prompt))
@@ -93,6 +127,9 @@ default. Reply with ONLY JSON:
             }))
           : [],
         assumptions: Array.isArray(raw.assumptions) ? raw.assumptions.map(String) : [],
+        // kept raw here; resolved against the allowlists at spawn time
+        model: raw.model == null ? null : String(raw.model),
+        effort: raw.effort == null ? null : String(raw.effort),
       }
     } catch (err) {
       if (attempt) throw new Error(`expansion returned non-JSON:\n${err instanceof Error ? err.message : err}`)

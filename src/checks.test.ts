@@ -6,7 +6,15 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { credsFileFor, looksLikePrompt } from './cate'
 import { tldrFromTranscript } from './hook'
-import { parseJson, tabTitle, taskName } from './pipeline'
+import {
+  DEFAULT_EFFORT,
+  DEFAULT_MODEL,
+  parseJson,
+  resolveEffort,
+  resolveModel,
+  tabTitle,
+  taskName,
+} from './pipeline'
 import { answersBlock } from './server'
 import { claudeCommand, shq } from './spawn'
 
@@ -54,6 +62,32 @@ test('claudeCommand shape: cd first, no skip-permissions, settings file, add-dir
   assert.ok(!cmd.includes('--dangerously-skip-permissions'))
 })
 
+test('claudeCommand honours a requested model and effort', () => {
+  // the bug: "run using sonnet high effort" reached the spec as prose and the
+  // launcher spawned opus/medium anyway
+  const cmd = claudeCommand('/w', '/s.md', '/c.json', [], resolveModel('sonnet'), resolveEffort('high'))
+  assert.ok(cmd.includes(`--model 'claude-sonnet-5'`), cmd)
+  assert.ok(cmd.includes(`--effort 'high'`), cmd)
+
+  const dflt = claudeCommand('/w', '/s.md', '/c.json')
+  assert.ok(dflt.includes(`--model '${DEFAULT_MODEL}'`) && dflt.includes(`--effort '${DEFAULT_EFFORT}'`))
+})
+
+test('resolveModel/resolveEffort: allowlists, since both reach a shell command', () => {
+  assert.equal(resolveModel('sonnet'), 'claude-sonnet-5')
+  assert.equal(resolveModel('Opus'), 'claude-opus-5')
+  assert.equal(resolveModel('claude-haiku-4-5-20251001'), 'claude-haiku-4-5-20251001')
+  assert.equal(resolveModel(null), DEFAULT_MODEL)
+  assert.equal(resolveModel(''), DEFAULT_MODEL)
+  assert.equal(resolveModel('gpt-4'), DEFAULT_MODEL) // unknown falls back, never passes through
+  assert.equal(resolveModel("x'; rm -rf ~"), DEFAULT_MODEL)
+
+  assert.equal(resolveEffort('high'), 'high')
+  assert.equal(resolveEffort('MAX'), 'max')
+  assert.equal(resolveEffort(null), DEFAULT_EFFORT)
+  assert.equal(resolveEffort('turbo'), DEFAULT_EFFORT)
+})
+
 test('tldrFromTranscript: last assistant text wins, 600-char cap', () => {
   const lines = [
     JSON.stringify({ type: 'user', message: { content: [{ type: 'text', text: 'hi' }] } }),
@@ -80,6 +114,8 @@ test('answersBlock: assumptions + Q/A with defaults for blanks', () => {
       { q: 'Tests too?', default: 'yes' },
     ],
     assumptions: ['scope is small'],
+    model: null,
+    effort: null,
   }
   assert.equal(
     answersBlock(plan, ['b.ts', '']),

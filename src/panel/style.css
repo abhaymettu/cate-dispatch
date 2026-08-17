@@ -587,6 +587,15 @@ h1 { font-size: 13px; font-weight: 500; margin: 0; }
   white-space: nowrap;
   animation: pi-pill-in 260ms var(--ease) both;
 }
+/* the run settings are a fact about the launch, not a routing decision, so they
+   do not compete with the profile for the accent */
+.skillPill.neutral {
+  background: var(--hover-strong);
+  color: var(--text-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0;
+}
 
 /* the router's assumptions, on task-list's item geometry */
 .notes { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }

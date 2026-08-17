@@ -12,7 +12,7 @@ import {
   typeCommand,
   waitForPrompt,
 } from './cate'
-import { DEFAULT_EFFORT, DEFAULT_MODEL, profiles, tabTitle } from './pipeline'
+import { DEFAULT_EFFORT, DEFAULT_MODEL, profiles, resolveEffort, resolveModel, tabTitle } from './pipeline'
 import { STATUS_DIR, type Task } from './tasks'
 
 const execFileP = promisify(execFile)
@@ -76,6 +76,8 @@ export function claudeCommand(
   specFile: string,
   settingsFile: string,
   addDirs: string[] = [],
+  model = DEFAULT_MODEL,
+  effort = DEFAULT_EFFORT,
 ): string {
   const dirs = addDirs.map((d) => `--add-dir ${shq(d)} `).join('')
   // Subshell on purpose: the PANEL's root zsh must stay in the workspace root.
@@ -83,7 +85,7 @@ export function claudeCommand(
   // terminal there - a cwd outside the open workspace root is rejected
   // ("outside allowed directories") and the whole panel fails to restore.
   return (
-    `( cd ${shq(cwd)} && claude --model ${shq(DEFAULT_MODEL)} --effort ${shq(DEFAULT_EFFORT)} ` +
+    `( cd ${shq(cwd)} && claude --model ${shq(model)} --effort ${shq(effort)} ` +
     `${dirs}--settings ${shq(settingsFile)} "$(cat ${shq(specFile)})" )`
   )
 }
@@ -96,6 +98,9 @@ export async function spawnAgent(opts: {
   target: string
   spec: string
   workspaceRoot: string
+  /** What the thought asked to run with, if anything. */
+  model?: string | null
+  effort?: string | null
 }): Promise<SpawnResult> {
   const { name, thought, target, spec, workspaceRoot } = opts
 
@@ -124,7 +129,10 @@ export async function spawnAgent(opts: {
     const exists = await fs.stat(root).then((s) => s.isDirectory()).catch(() => false)
     if (exists && !cwd.startsWith(root)) addDirs.push(root)
   }
-  const cmd = claudeCommand(cwd, specFile, settingsFile, addDirs)
+  const cmd = claudeCommand(
+    cwd, specFile, settingsFile, addDirs,
+    resolveModel(opts.model), resolveEffort(opts.effort),
+  )
   // The tail of the typed command wraps unpredictably on screen; the spec
   // filename is short and always visible on the first line.
   await typeCommand(fp.creds, panelId, cmd, `${name}.md`)
