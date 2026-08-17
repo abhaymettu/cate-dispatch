@@ -36,6 +36,11 @@
   /* the light a raised surface catches along its top edge */
   --sheen: rgba(255, 255, 255, 0.05);
 
+  /* The panel's defaultSize is 720 wide but it is freely resizable, and a row
+     or a text field stretched across 1200px reads as a stray line rather than a
+     list. Everything shares one measure and centres in whatever it is given. */
+  --measure: 860px;
+
   /* AIcss's three easings, verbatim */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-shine: cubic-bezier(0.25, 0.1, 0.25, 1);
@@ -48,6 +53,10 @@
 }
 
 * { box-sizing: border-box; }
+
+/* the three bands of the shell hold the same measure, so their left edges line
+   up no matter how wide the panel is dragged */
+header, #board, #composer { width: 100%; max-width: var(--measure); margin-inline: auto; }
 
 html, body { height: 100%; }
 

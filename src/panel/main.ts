@@ -172,6 +172,18 @@ function pillLabel(btn: HTMLButtonElement, text: string): void {
   if (span) span.textContent = text
 }
 
+/** Which step the rail lights. Usually the live stage, but not always: while the
+    spec is being written the stage is still `questions` and the rail should
+    already be on `review`, because writing the spec is what is happening. */
+function setRail(step: Stage): void {
+  const at = STAGES.indexOf(step)
+  document.querySelectorAll<HTMLElement>('.railStep').forEach((el) => {
+    const i = STAGES.indexOf(el.dataset.step as Stage)
+    el.classList.toggle('on', i === at)
+    el.classList.toggle('done', i < at)
+  })
+}
+
 function setStage(next: Stage): void {
   stage = next
   frame.dataset.stage = next
@@ -185,12 +197,7 @@ function setStage(next: Stage): void {
     else section.setAttribute('inert', '')
   }
 
-  const at = STAGES.indexOf(next)
-  document.querySelectorAll<HTMLElement>('.railStep').forEach((step) => {
-    const i = STAGES.indexOf(step.dataset.step as Stage)
-    step.classList.toggle('on', i === at)
-    step.classList.toggle('done', i < at)
-  })
+  setRail(next)
 
   // stage 1 sends with the round arrow; later stages need a verb
   primary.hidden = next !== 'thought'
@@ -298,6 +305,7 @@ async function startDispatch(): Promise<void> {
 async function writeSpec(): Promise<void> {
   if (!draftId || busySince) return
   primaryWide.disabled = true
+  setRail('review')
   setBusy(true, 'Writing spec')
   try {
     const answers = Array.from($('qlist').querySelectorAll<HTMLInputElement>('input')).map((i) => i.value)
@@ -308,6 +316,7 @@ async function writeSpec(): Promise<void> {
     setStage('review')
   } catch (err) {
     fail(err)
+    setRail('questions')
     primaryWide.disabled = false
   }
 }
