@@ -1,87 +1,868 @@
+/* Dispatch panel.
+ *
+ * Ported from AIcss (aicss.dev) — plain CSS, no deps. Where a surface here has
+ * an AIcss counterpart the geometry, easing and layering are taken from that
+ * component's stylesheet rather than approximated:
+ *
+ *   composer frame, iconBtn, pill, chip, skill pill, conic sweep  → ai-agent-input
+ *   board head, board rows, stacked state icons, rolling count    → task-list
+ *   shimmering labels                                             → thinking-state
+ *   spec review chrome                                            → code-block
+ *   the working indicator                                         → orbs (Lattice S3)
+ *   collapsibles                                                  → thinking-reasoning
+ *
+ * AIcss ships light and dark palettes as literals; both are replaced here by
+ * Cate's live theme tokens so the panel tracks the IDE. Token names are from the
+ * cate-theme schema — note there is no `activity-red`, so error red is
+ * `git-deleted`.
+ */
+
 :root {
-  --bg: var(--cate-surface-1, #1b1d22);
-  --bg-raised: var(--cate-surface-2, #23262c);
-  --border: var(--cate-border-subtle, #33363d);
-  --text: var(--cate-text-primary, #e8e9eb);
-  --text-muted: var(--cate-text-muted, #8b8f98);
+  --surface: var(--cate-surface-1, #16181c);
+  --raised: var(--cate-surface-2, #1e2126);
+  --hairline: var(--cate-border-subtle, #2c3037);
+  --hairline-strong: var(--cate-border-strong, #3a3f47);
+  --focus: var(--cate-border-focus, #4c8dff);
+  --text: var(--cate-text-primary, #e9eaec);
+  --text-2: var(--cate-text-secondary, #b6bac1);
+  --muted: var(--cate-text-muted, #7d828b);
   --accent: var(--cate-focus-blue, #4c8dff);
-  --green: var(--cate-activity-green, #3fb950);
+  --green: var(--cate-activity-green, #34d399);
   --orange: var(--cate-activity-orange, #d29922);
+  --red: var(--cate-git-deleted, #ff453a);
+  --hover: var(--cate-surface-hover, rgba(255, 255, 255, 0.06));
+  --hover-strong: var(--cate-surface-hover-strong, rgba(255, 255, 255, 0.1));
+  --thumb: var(--cate-scrollbar-thumb, rgba(255, 255, 255, 0.14));
+  /* the light a raised surface catches along its top edge */
+  --sheen: rgba(255, 255, 255, 0.05);
+
+  /* AIcss's three easings, verbatim */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-shine: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-in-out: cubic-bezier(0.66, 0, 0.34, 1);
+
+  /* and its three durations: press/hover, crossfade, height */
+  --t-press: 150ms;
+  --t-fade: 220ms;
+  --t-move: 320ms;
 }
 
 * { box-sizing: border-box; }
 
+html, body { height: 100%; }
+
 body {
   margin: 0;
-  padding: 14px 16px;
-  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* only the board scrolls */
+  background: var(--surface);
   color: var(--text);
-  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: -0.005em;
 }
 
-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
-h1 { font-size: 15px; margin: 0; }
-.muted { color: var(--text-muted); font-size: 12px; }
+/* AIcss thins every glyph in the composer to 1.5; the sprite carries its own
+   per-icon weights, so this only catches anything that forgot to. */
+svg { stroke-width: 1.5px; }
 
-section { margin-bottom: 14px; }
-.row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
-textarea, input {
-  width: 100%;
-  background: var(--bg-raised);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 10px;
-  font: inherit;
-  resize: vertical;
+::selection { background: color-mix(in srgb, var(--accent) 34%, transparent); }
+
+/* One shine, used by every shimmering label in the panel (thinking-state,
+   task-list's active row, the composer status line). */
+@keyframes shine {
+  0%, 18% { background-position: 100% 0; }
+  82%, 100% { background-position: 0% 0; }
 }
-textarea:focus, input:focus { outline: none; border-color: var(--accent); }
-#spec { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-
-button {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 7px 14px;
-  font: inherit;
-  cursor: pointer;
-  white-space: nowrap;
+.shimmer {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  background: linear-gradient(
+    90deg,
+    var(--shimmer-ink, var(--muted)) 0%, var(--shimmer-ink, var(--muted)) 30%,
+    color-mix(in srgb, var(--shimmer-ink, var(--muted)) 45%, transparent) 45%,
+    color-mix(in srgb, var(--shimmer-ink, var(--muted)) 45%, transparent) 55%,
+    var(--shimmer-ink, var(--muted)) 70%, var(--shimmer-ink, var(--muted)) 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: shine 2.25s var(--ease-shine) infinite;
 }
-button:hover { filter: brightness(1.1); }
-button:disabled { opacity: 0.5; cursor: default; }
-button.ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
 
-#assumptions { margin: 8px 0 0; padding-left: 18px; }
-.question { margin-top: 10px; }
-.question label { display: block; margin-bottom: 4px; }
+/* --- header ---------------------------------------------------------------- */
 
-#cards { display: flex; flex-direction: column; gap: 8px; }
-.card {
+header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 9px 12px;
+  gap: 8px;
+  flex: none;
+  /* 18px puts "Dispatch" on the same rail as the board head's title and every
+     row label below it */
+  padding: 11px 14px 10px 18px;
+}
+h1 { font-size: 13px; font-weight: 500; margin: 0; }
+#workspace {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+/* --- board: the page ------------------------------------------------------- */
+
+#board {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 11px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--thumb) transparent;
+}
+#board::-webkit-scrollbar { width: 8px; }
+#board::-webkit-scrollbar-thumb { background: var(--thumb); border-radius: 4px; }
+#board::-webkit-scrollbar-track { background: transparent; }
+
+/* task-list's header: icon, title, count. Sticky so it survives a scroll. */
+#board-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  padding: 0 7px 8px;
+  /* opaque, not a gradient: a partly-transparent sticky header lets scrolled
+     rows ghost through its own text. The fade belongs below it, as its own strip. */
+  background: var(--surface);
+}
+#board-head::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 10px;
+  background: linear-gradient(var(--surface), transparent);
+  pointer-events: none;
+}
+.headIcon { position: relative; width: 16px; height: 16px; flex: none; color: var(--muted); }
+.headGlyph {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 13px;
+  height: 13px;
+  opacity: 0;
+  transition: opacity var(--t-press) ease;
+}
+.headGlyph.on { opacity: 1; }
+/* the solid check reads smaller than an outlined glyph, so render it full-size */
+.headCheck { width: 16px; height: 16px; color: var(--green); }
+.headTitle { font-weight: 500; color: var(--text); }
+.headCount { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* task-list's rolling counter: each character slot rolls the old glyph up and
+   the new one in, so `2/5` -> `3/5` is a movement rather than a repaint. */
+.rollCount { display: inline-flex; align-items: baseline; }
+.rollDigit { display: inline-block; overflow: hidden; height: 1em; line-height: 1em; }
+.rollInner { display: flex; flex-direction: column; transition: transform 350ms cubic-bezier(0.4, 0, 0.2, 1); }
+.rollInner span { height: 1em; line-height: 1em; }
+.rollInner.on { transform: translateY(-1em); }
+
+#cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+
+/* --- a board row ----------------------------------------------------------- */
+
+.row {
+  position: relative;
+  animation: row-in var(--t-move) ease backwards;
+  animation-delay: calc(var(--i, 0) * 50ms);
+}
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(-7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* the clickable line takes ai-agent-input's menuItem shape (26px, 7px radius,
+   the same two hover fills) and task-list's item geometry inside it */
+.rowMain {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 28px;
+  padding: 4px 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
   cursor: pointer;
 }
-.card:hover { border-color: var(--accent); }
-.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--text-muted); }
-.dot.working { background: var(--green); animation: pulse 1.6s ease-in-out infinite; }
-.dot.waiting { background: var(--orange); }
-.dot.done { background: var(--text-muted); }
-@keyframes pulse { 50% { opacity: 0.35; } }
+.rowMain:hover { background: var(--hover); }
+.rowMain:active { background: var(--hover-strong); }
+.rowMain:focus-visible { outline: 1px solid var(--focus); outline-offset: -1px; }
 
-.card .name { font-weight: 600; }
-.card .meta { color: var(--text-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-.card .close { background: none; border: none; color: var(--text-muted); font-size: 14px; padding: 2px 6px; }
-.card .close:hover { color: var(--text); }
+/* the four state glyphs are stacked and crossfaded, never swapped: a row that
+   goes working -> done dissolves in place (task-list's todoIconWrap) */
+.rowIconWrap { position: relative; width: 16px; height: 16px; flex: none; }
+/* a row that wants something from you carries its state colour as a soft halo
+   behind the glyph, so the board reads at a glance without any row shouting */
+.rowIconWrap::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  background: var(--halo, transparent);
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity 360ms ease, transform 360ms var(--ease);
+}
+.row.permission .rowIconWrap { --halo: radial-gradient(closest-side, color-mix(in srgb, var(--orange) 26%, transparent), transparent); }
+.row.replied .rowIconWrap { --halo: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 26%, transparent), transparent); }
+.row.working .rowIconWrap { --halo: radial-gradient(closest-side, color-mix(in srgb, var(--text) 14%, transparent), transparent); }
+.row.permission .rowIconWrap::before,
+.row.replied .rowIconWrap::before,
+.row.working .rowIconWrap::before { opacity: 1; transform: scale(1); }
+.rowIcon {
+  position: absolute;
+  inset: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 320ms ease;
+}
+.rowIcon.on { opacity: 1; }
+.row.working .rowIcon.i-working { color: var(--text); }
+.row.permission .rowIcon.i-permission { color: var(--orange); }
+.row.replied .rowIcon.i-replied { color: var(--accent); }
 
-footer { display: flex; gap: 12px; margin-top: 6px; }
-footer a { color: var(--text-muted); font-size: 11px; text-decoration: none; }
-footer a:hover { color: var(--text); }
+.rowName {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  transition: color 360ms ease;
+}
+/* a working row's name shimmers — the same overlay task-list crossfades in
+   over an active label, so the change of state is a dissolve, not a jump */
+.rowName::before {
+  content: attr(data-label);
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    var(--text) 0%, var(--text) 30%,
+    color-mix(in srgb, var(--text) 45%, transparent) 45%,
+    color-mix(in srgb, var(--text) 45%, transparent) 55%,
+    var(--text) 70%, var(--text) 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  opacity: 0;
+  transition: opacity 360ms ease;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.row.working .rowName { color: transparent; }
+.row.working .rowName::before { opacity: 1; animation: shine 2.25s var(--ease-shine) infinite; }
+.row.permission .rowName, .row.replied .rowName { color: var(--text); }
 
-.error { color: #e5534b; }
+.rowMeta {
+  margin-left: auto;
+  flex: none;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 425;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  white-space: nowrap;
+  transition: color 360ms ease, opacity var(--t-press) ease;
+}
+.row.permission .rowMeta { color: var(--orange); }
+.row.replied .rowMeta { color: var(--accent); }
+/* the actions sit over the meta, so the meta steps aside for them */
+.row:hover .rowMeta, .row:focus-within .rowMeta { opacity: 0; }
+
+/* a sibling of the row button, not a child: nesting buttons is invalid, and
+   this way the row and each action are all real, separately focusable targets */
+.rowActions {
+  position: absolute;
+  top: 0;
+  right: 5px;
+  z-index: 1;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-press) ease;
+}
+.row:hover .rowActions, .row:focus-within .rowActions { opacity: 1; pointer-events: auto; }
+
+/* chipRemove, from ai-agent-input */
+.rowBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border: 0;
+  padding: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background var(--t-press) var(--ease), color var(--t-press) var(--ease);
+}
+.rowBtn:hover { background: var(--hover-strong); color: var(--text); }
+.rowBtn:focus-visible { outline: 1px solid var(--focus); outline-offset: 1px; }
+.rowBtn > svg { width: 13px; height: 13px; display: block; }
+.rowBtn.caret > svg { transition: transform 280ms var(--ease); }
+.row.open .rowBtn.caret > svg { transform: rotate(180deg); }
+
+/* thinking-reasoning's collapsible: 0fr -> 1fr, so no height is ever measured */
+.rowDetail {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+  transition: grid-template-rows var(--t-move) var(--ease), opacity var(--t-fade) ease;
+}
+.row.open .rowDetail { grid-template-rows: 1fr; opacity: 1; pointer-events: auto; }
+.rowDetailInner { min-height: 0; overflow: hidden; }
+.rowDetailPad {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 3px 8px 10px 32px;
+}
+/* text-response prose */
+.rowTldr { color: var(--text-2); line-height: 19px; }
+.rowFacts { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); font-size: 11.5px; font-weight: 425; letter-spacing: 0; }
+.rowFact { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.rowFact > svg { width: 13px; height: 13px; flex: none; }
+.rowFact .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+#empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 46px 0;
+  color: var(--muted);
+  animation: fade-in var(--t-move) var(--ease) both;
+}
+/* the same dashed circle the pending rows use, at rest and oversized: the empty
+   board reads as a waiting board rather than a missing one */
+#empty::before {
+  content: "";
+  width: 34px;
+  height: 34px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  border: 1.4px dashed color-mix(in srgb, var(--muted) 34%, transparent);
+}
+#empty span { color: color-mix(in srgb, var(--muted) 60%, transparent); font-size: 11.5px; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* --- composer: ai-agent-input's frame -------------------------------------- */
+
+#composer { position: relative; flex: none; padding: 4px 11px 11px; }
+/* the board runs right up to the composer, so a row scrolled under the edge cuts
+   dead. This fades it out and says there is more below. */
+#composer::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 16px;
+  background: linear-gradient(transparent, var(--surface));
+  pointer-events: none;
+}
+
+.frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 10px 10px;
+  /* a real raised surface catches a little more light along its top edge than
+     its bottom. A flat fill plus a hairline reads as a rectangle; this reads as
+     something sitting above the page. */
+  background: linear-gradient(
+    var(--raised),
+    color-mix(in srgb, var(--raised) 94%, var(--surface))
+  );
+  /* a transparent border keeps the geometry the sweeping ::after relies on;
+     the hairline ring goes first in the shadow list so it paints over the drops
+     and stays even on every edge, then an inset highlight along the top */
+  border: 0.5px solid transparent;
+  border-radius: 12px;
+  box-shadow: 0 0 0 0.5px var(--hairline), 0 1px 2px rgba(0, 0, 0, 0.28),
+    0 4px 12px rgba(0, 0, 0, 0.18), inset 0 1px 0 var(--sheen);
+  transition: box-shadow var(--t-fade) var(--ease);
+}
+/* only at rest: from `questions` on, the focused field carries its own ring and
+   two rings nested inside each other read as an error state */
+.frame[data-stage="thought"]:focus-within {
+  box-shadow: 0 0 0 1px var(--focus), 0 1px 2px rgba(0, 0, 0, 0.28),
+    0 4px 12px rgba(0, 0, 0, 0.18), inset 0 1px 0 var(--sheen);
+}
+
+/* the enhancing ring, reused for the blocking router / spec calls */
+@property --pi-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.frame[data-busy]::after {
+  content: "";
+  position: absolute;
+  inset: -0.5px;
+  border-radius: 12.5px;
+  /* border + padding-box mask keeps the ring an even 0.75px on every side */
+  border: 0.75px solid transparent;
+  background: conic-gradient(from var(--pi-angle), #3b6fb5, #6b5aa6, #9a4f96, #3a8a9a, #3b6fb5) border-box;
+  -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: pi-border-spin 1.1s linear infinite, pi-border-in var(--t-fade) var(--ease) both;
+  pointer-events: none;
+}
+:root[data-theme="light"] .frame[data-busy]::after {
+  background: conic-gradient(from var(--pi-angle), #2b7fff, #8b5cf6, #d946ef, #22d3ee, #2b7fff) border-box;
+}
+@keyframes pi-border-spin { to { --pi-angle: 360deg; } }
+@keyframes pi-border-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* stage rail — the menu's label scale, not micro-caps */
+.rail {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  /* collapsed, the rail also gives back the frame's 12px gap below it; open, it
+     keeps 6px — the same tightening ai-agent-input does for its chip row */
+  margin-bottom: -12px;
+  transition: grid-template-rows var(--t-move) var(--ease), opacity var(--t-fade) ease,
+    margin-bottom var(--t-move) var(--ease);
+}
+.frame:not([data-stage="thought"]) .rail { grid-template-rows: 1fr; opacity: 1; margin-bottom: -6px; }
+.railInner { min-height: 0; overflow: hidden; }
+.railRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 425;
+  line-height: 14px;
+  color: var(--muted);
+}
+.railStep {
+  color: color-mix(in srgb, var(--muted) 55%, transparent);
+  transition: color var(--t-fade) ease;
+}
+.railStep.done { color: var(--muted); }
+.railStep.on { color: var(--text); }
+.railSep { width: 10px; height: 0.5px; background: var(--hairline-strong); flex: none; }
+
+/* stages: each collapses to 0fr, the active one opens to 1fr, so the card's
+   height is whatever the live stage needs and the swap is one morph */
+/* stacked in normal flow, not overlaid: a collapsed stage is exactly 0 tall, so
+   the frame's height is the sum — which interpolates smoothly through a swap
+   instead of holding at the taller of the two */
+.stage {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  filter: blur(2px);
+  pointer-events: none;
+  transition: grid-template-rows var(--t-move) var(--ease), opacity var(--t-fade) ease,
+    filter var(--t-fade) ease;
+}
+.stage.on { grid-template-rows: 1fr; opacity: 1; filter: blur(0); pointer-events: auto; }
+.stageInner { min-height: 0; overflow: hidden; }
+.stagePad { display: flex; flex-direction: column; gap: 10px; }
+
+.field {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: -0.12px;
+  resize: none;
+}
+.field::placeholder { color: var(--text); opacity: 0.5; }
+#thought { min-height: 18px; max-height: 148px; overflow-y: auto; scrollbar-width: none; }
+#thought::-webkit-scrollbar { display: none; }
+
+/* target: ai-agent-input's attachment chip, made editable */
+.targetRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 3px 8px 3px 6px;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 0.5px solid var(--hairline);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 14px;
+  transition: border-color var(--t-press) var(--ease), box-shadow var(--t-press) var(--ease);
+}
+.chip:focus-within { border-color: transparent; box-shadow: 0 0 0 1px var(--focus); }
+.chipIcon { display: inline-flex; flex: none; color: var(--muted); }
+.chipIcon > svg { width: 13px; height: 13px; }
+.chipInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0;
+}
+
+/* the routed profile, as ai-agent-input's inline skill pill */
+.skillPill {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.12px;
+  white-space: nowrap;
+  animation: pi-pill-in 260ms var(--ease) both;
+}
+
+/* the router's assumptions, on task-list's item geometry */
+.notes { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.notes li { display: flex; align-items: flex-start; gap: 9px; color: var(--muted); font-size: 12px; line-height: 17px; }
+.notes li::before {
+  content: "";
+  flex: none;
+  width: 3px;
+  height: 3px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+}
+.notes li.warn { color: var(--red); }
+
+.qrow { display: flex; flex-direction: column; gap: 4px; }
+.qrow + .qrow { margin-top: 9px; }
+.qrow label { font-size: 11px; font-weight: 425; color: var(--muted); }
+.qrow input {
+  width: 100%;
+  margin: 0;
+  border: 0.5px solid var(--hairline);
+  outline: 0;
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: -0.12px;
+  transition: border-color var(--t-press) var(--ease), box-shadow var(--t-press) var(--ease);
+}
+.qrow input:focus { border-color: transparent; box-shadow: 0 0 0 1px var(--focus); }
+
+/* --- spec review: code-block ----------------------------------------------- */
+
+.cb {
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--hairline);
+  overflow: hidden;
+}
+.cbHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 10px;
+  border-bottom: 0.5px solid var(--hairline);
+}
+.cbFile { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.cbIcon { display: block; width: 14px; height: 14px; color: var(--muted); flex: none; }
+.cbLang {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1;
+  letter-spacing: 0;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cbCopy {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  border: 0;
+  padding: 3px 6px 3px 7px;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 425;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: background var(--t-press) var(--ease), color var(--t-press) var(--ease);
+}
+.cbCopy:hover { color: var(--text); background: var(--hover); }
+.cbCopy > svg { width: 13px; height: 13px; }
+.cbBody { padding: 9px 2px 10px 12px; }
+#spec {
+  display: block;
+  font-size: 12.5px;
+  line-height: 20px;
+  letter-spacing: 0;
+  /* a whole number of 20px lines, so the viewport never cuts one in half the way
+     a vh-relative cap does */
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--thumb) transparent;
+}
+#spec::-webkit-scrollbar { width: 8px; }
+#spec::-webkit-scrollbar-thumb { background: var(--thumb); border-radius: 4px; }
+
+/* --- action row ------------------------------------------------------------ */
+
+.barRow { display: flex; align-items: center; gap: 8px; }
+.barRow .right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+#status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 425;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+#status.bad { color: var(--red); -webkit-text-fill-color: var(--red); background: none; animation: none; }
+
+/* round soft button. The fill lives on ::before so a press scales only the
+   container (0.98), never the glyph on top. */
+.iconBtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.iconBtn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--hover);
+  transition: background var(--t-press) var(--ease), transform var(--t-press) var(--ease);
+}
+.iconBtn:hover::before { background: var(--hover-strong); }
+.iconBtn:active::before { transform: scale(0.98); }
+.iconBtn:focus-visible::before { box-shadow: 0 0 0 1px var(--focus); }
+/* keep the glyph above the (opaque, when active) ::before fill */
+.iconBtn > svg { position: relative; width: 14px; height: 14px; }
+
+.send { color: var(--muted); }
+.send:disabled { cursor: default; }
+.send:disabled:active::before { transform: none; }
+.send.sendActive { color: var(--surface); }
+.send.sendActive::before { background: var(--text); }
+.send.sendActive:hover::before { background: color-mix(in srgb, var(--text) 88%, var(--surface)); }
+
+/* the header's beaker is chromeless until hovered */
+.iconBtn.ghost { width: 20px; height: 20px; color: var(--muted); }
+.iconBtn.ghost::before { background: transparent; }
+.iconBtn.ghost:hover { color: var(--text); }
+.iconBtn.ghost:hover::before { background: var(--hover); }
+.iconBtn.ghost > svg { width: 13px; height: 13px; }
+
+/* pill: the same fill and press behaviour as the icon buttons. The label needs
+   its own stacking context — ::before is positioned, so it paints over a bare
+   text node the way it would over a bare glyph. */
+.pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  line-height: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  white-space: nowrap;
+  cursor: pointer;
+  animation: pi-pill-in 260ms var(--ease) both;
+}
+.pillLabel { position: relative; }
+.pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--hover);
+  transition: background var(--t-press) var(--ease), transform var(--t-press) var(--ease);
+}
+.pill:hover::before { background: var(--hover-strong); }
+.pill:active::before { transform: scale(0.98); }
+.pill:focus-visible::before { box-shadow: 0 0 0 1px var(--focus); }
+.pill.primary { color: var(--surface); }
+.pill.primary::before { background: var(--text); }
+.pill.primary:hover::before { background: color-mix(in srgb, var(--text) 88%, var(--surface)); }
+.pill:disabled { color: var(--muted); cursor: default; }
+.pill:disabled::before { background: var(--hover); }
+.pill:disabled:active::before { transform: none; }
+@keyframes pi-pill-in {
+  from { opacity: 0; transform: scale(0.96); filter: blur(2px); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+/* --- orbs: Lattice S3 ("Working") ------------------------------------------ */
+/* The geometry is authored on a 28px stage and scaled by --orb-k, so the dot
+   size, pitch and stagger hold at any size. Here the stage is the 22px icon
+   button's slot. A comet head runs the perimeter clockwise; the interior cell
+   sits the choreography out and drops back to --orb-dim. */
+
+.orbBtn { cursor: default; }
+.orbBtn::before { background: transparent; }
+.orbGlyph {
+  --orb-k: 0.7143; /* 20 / 28 */
+  position: relative;
+  display: block;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  overflow: hidden;
+  contain: strict;
+  color: var(--text);
+}
+.lattice {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 28px;
+  height: 28px;
+  transform-origin: 0 0;
+  /* three 3px dots on a 6px pitch measure 15px, so the grid is offset to sit
+     centred on the stage */
+  transform: scale(var(--orb-k)) translate(6.5px, 6.5px);
+  --orb-rest: 0.2;
+  --orb-dim: 0.1;
+}
+/* light ink on a dark surface reads dimmer at the same alpha, so the light
+   theme uses lower resting values */
+:root[data-theme="light"] .lattice { --orb-rest: 0.14; --orb-dim: 0.07; }
+/* a light surface catches its edge light as white too, just far less of it */
+:root[data-theme="light"] { --sheen: rgba(255, 255, 255, 0.7); }
+.cell {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: var(--orb-rest);
+  animation: orb-comet 1.7s var(--ease) infinite both;
+}
+.cell[data-still] { animation: none; opacity: var(--orb-dim); }
+/* starts lit and decays, so the staggered ring cells form a head and a tail */
+@keyframes orb-comet {
+  0% {
+    opacity: 1;
+    transform: scale(1.2);
+    /* linear, so the cells behind the head form an even gradient instead of
+       collapsing to rest within the first two */
+    animation-timing-function: linear;
+  }
+  45% { opacity: var(--orb-rest); transform: scale(1); }
+  100% { opacity: var(--orb-rest); transform: scale(1); }
+}
+
+[hidden] { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .row, .pill, .skillPill, #empty,
+  .frame[data-busy]::after,
+  .row.working .rowName::before,
+  .shimmer,
+  .cell { animation: none; }
+  /* a shimmer with its animation stopped is still transparent text painted by a
+     frozen gradient, which reads as a half-faded label. Drop back to flat ink
+     instead: hide the overlay and let the plain label underneath show. */
+  .row.working .rowName { color: var(--text); }
+  .row.working .rowName::before { display: none; }
+  .shimmer {
+    background: none;
+    color: var(--muted);
+    -webkit-text-fill-color: var(--muted);
+  }
+  .cell[data-mid] { opacity: 1; }
+  .stage { filter: none; }
+  .stage:not(.on) { filter: none; }
+  * { transition-duration: 1ms !important; }
+}
